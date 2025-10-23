@@ -57,6 +57,16 @@
   }
 )
 
+(define-map leaderboard-scores
+  { user: principal }
+  {
+    bounty-points: uint,
+    claim-points: uint,
+    verification-points: uint,
+    total-points: uint,
+  }
+)
+
 (define-public (create-bounty
     (title (string-ascii 100))
     (description (string-ascii 500))
@@ -104,6 +114,7 @@
         u1
       ) }
       ))
+    (unwrap-panic (update-leaderboard-score tx-sender u10 u0 u0))
     (var-set bounty-id-nonce bounty-id)
     (var-set total-bounties (+ (var-get total-bounties) u1))
     (ok bounty-id)
@@ -125,6 +136,7 @@
         evidence-hash: (some evidence-hash),
       })
     )
+    (unwrap-panic (update-leaderboard-score tx-sender u0 u5 u0))
     (ok true)
   )
 )
@@ -146,6 +158,7 @@
       approved: approved,
       timestamp: stacks-block-height,
     })
+    (unwrap-panic (update-leaderboard-score tx-sender u0 u0 u3))
     (if approved
       (begin
         (map-set bounties { bounty-id: bounty-id }
@@ -206,6 +219,36 @@
     (map-set bounties { bounty-id: bounty-id }
       (merge bounty { status: "cancelled" })
     )
+    (ok true)
+  )
+)
+
+(define-private (update-leaderboard-score
+    (user principal)
+    (bounty-pts uint)
+    (claim-pts uint)
+    (verify-pts uint)
+  )
+  (let (
+      (current-score (default-to {
+        bounty-points: u0,
+        claim-points: u0,
+        verification-points: u0,
+        total-points: u0,
+      }
+        (map-get? leaderboard-scores { user: user })
+      ))
+      (new-bounty-pts (+ (get bounty-points current-score) bounty-pts))
+      (new-claim-pts (+ (get claim-points current-score) claim-pts))
+      (new-verify-pts (+ (get verification-points current-score) verify-pts))
+      (new-total (+ (+ new-bounty-pts new-claim-pts) new-verify-pts))
+    )
+    (map-set leaderboard-scores { user: user } {
+      bounty-points: new-bounty-pts,
+      claim-points: new-claim-pts,
+      verification-points: new-verify-pts,
+      total-points: new-total,
+    })
     (ok true)
   )
 )
@@ -307,4 +350,15 @@
 
 (define-read-only (get-active-bounties-count)
   (var-get total-bounties)
+)
+
+(define-read-only (get-leaderboard-score (user principal))
+  (default-to {
+    bounty-points: u0,
+    claim-points: u0,
+    verification-points: u0,
+    total-points: u0,
+  }
+    (map-get? leaderboard-scores { user: user })
+  )
 )
