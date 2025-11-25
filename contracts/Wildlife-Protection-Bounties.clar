@@ -121,6 +121,60 @@
   )
 )
 
+(define-public (create-bounty-with-amount
+    (title (string-ascii 100))
+    (description (string-ascii 500))
+    (evidence-required (string-ascii 200))
+    (duration-blocks uint)
+    (reward-amount uint)
+  )
+  (let (
+      (bounty-id (+ (var-get bounty-id-nonce) u1))
+      (expiry-block (+ stacks-block-height duration-blocks))
+    )
+    (asserts! (> reward-amount u0) err-invalid-bounty)
+    (asserts! (> duration-blocks u0) err-invalid-bounty)
+    (asserts! (> (len title) u0) err-invalid-bounty)
+    (try! (stx-transfer? reward-amount tx-sender (as-contract tx-sender)))
+    (map-set bounties { bounty-id: bounty-id } {
+      creator: tx-sender,
+      title: title,
+      description: description,
+      reward-amount: reward-amount,
+      evidence-required: evidence-required,
+      expiry-block: expiry-block,
+      status: "open",
+      claimer: none,
+      evidence-hash: none,
+      created-at: stacks-block-height,
+    })
+    (map-set user-bounties { user: tx-sender }
+      (merge
+        (default-to {
+          created-count: u0,
+          claimed-count: u0,
+          total-earned: u0,
+        }
+          (map-get? user-bounties { user: tx-sender })
+        ) { created-count: (+
+        (get created-count
+          (default-to {
+            created-count: u0,
+            claimed-count: u0,
+            total-earned: u0,
+          }
+            (map-get? user-bounties { user: tx-sender })
+          ))
+        u1
+      ) }
+      ))
+    (unwrap-panic (update-leaderboard-score tx-sender u10 u0 u0))
+    (var-set bounty-id-nonce bounty-id)
+    (var-set total-bounties (+ (var-get total-bounties) u1))
+    (ok bounty-id)
+  )
+)
+
 (define-public (claim-bounty
     (bounty-id uint)
     (evidence-hash (string-ascii 64))
